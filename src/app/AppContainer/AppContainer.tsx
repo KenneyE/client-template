@@ -109,7 +109,7 @@ export interface Props {
   loggedIn: boolean;
 }
 
-const App = ({ loggedIn }: Props): JSX.Element => {
+const AppContainer = ({ loggedIn }: Props): JSX.Element => {
   const classes = useStyles()
   const [open, setOpen] = React.useState(true)
   const handleDrawerOpen = (): void => {
@@ -149,7 +149,7 @@ const App = ({ loggedIn }: Props): JSX.Element => {
                   noWrap
                   className={ classes.title }
                 >
-                  Canyon Compliance - Admin
+                  Template App
                 </Typography>
                 <ProfileMenu />
               </Toolbar>
@@ -195,4 +195,4 @@ const App = ({ loggedIn }: Props): JSX.Element => {
   )
 }
 
-export default App
+export default AppContainer

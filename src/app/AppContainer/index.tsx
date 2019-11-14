@@ -1,15 +1,14 @@
 import React from 'react'
 import Dumb from './AppContainer'
-import { AuthComponent, AuthQuery } from 'types/graphql'
+import { AuthComponent } from 'types/graphql'
 
 const AppContainer = (): JSX.Element => {
   return (
-    <AuthComponent>
+    <AuthComponent fetchPolicy='cache-only'>
       {({ data, loading }): JSX.Element | null => {
         if (loading) return null
 
-        const { auth } = data as AuthQuery
-        return <Dumb loggedIn={ auth } />
+        return <Dumb loggedIn={ Boolean(data && data.auth) } />
       }}
     </AuthComponent>
   )
