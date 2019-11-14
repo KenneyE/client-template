@@ -78,7 +78,7 @@ const client = new ApolloClient({
     }),
     showFeedback.concat(
       createUploadLink({
-        uri: `${process.env.REACT_APP_API_URI}/api/v0`,
+        uri: `${process.env.REACT_APP_API_URI}/v0`,
         credentials: 'include',
       })
     ),
