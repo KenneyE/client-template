@@ -2,19 +2,15 @@ import React from 'react'
 import Spinner from 'app/common/Spinner'
 import LoginComponent from './Login'
 import { Redirect, withRouter, RouteComponentProps } from 'react-router'
-import { AuthComponent } from 'types/graphql'
+import { useAuthQuery } from 'types/graphql'
 
 const Login = (props: RouteComponentProps): JSX.Element => {
-  return (
-    <AuthComponent>
-      {({ data, loading }): JSX.Element => {
-        if (loading) return <Spinner />
-        if (data && data.auth) return <Redirect to='/' />
+  const {  data, loading }   = useAuthQuery()
 
-        return <LoginComponent { ...props } />
-      }}
-    </AuthComponent>
-  )
+  if (loading) return <Spinner />
+  if (data && data.auth) return <Redirect to='/' />
+
+  return <LoginComponent { ...props } />
 }
 
 export default withRouter(Login)

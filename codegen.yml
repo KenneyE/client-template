@@ -13,11 +13,7 @@ generates:
     config:
       withHOC: false
       withHooks: true
-      hooksImportFrom: '@apollo/react-hooks'
+      hooksImportFrom: '@apollo/client'
   ./graphql.schema.json:
     plugins:
       - introspection
-  src/types/fragmentTypes.ts:
-    overwrite: true
-    plugins:
-      - fragment-matcher

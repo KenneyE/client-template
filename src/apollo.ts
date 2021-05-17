@@ -1,89 +1,86 @@
-import { ApolloClient } from 'apollo-client'
 import {
-  InMemoryCache,
-  IntrospectionFragmentMatcher,
-} from 'apollo-cache-inmemory'
+  ApolloClient,
+  ApolloLink,
+  RequestHandler,
+  ServerError,
+} from '@apollo/client'
 import { createUploadLink } from 'apollo-upload-client'
-import { ServerError } from 'apollo-link-http-common'
-import { onError } from 'apollo-link-error'
-import { withClientState } from 'apollo-link-state'
-import { ApolloLink, FetchResult, Observable } from 'apollo-link'
+import { ContextSetter, setContext } from '@apollo/client/link/context'
 import { toast } from 'react-toastify'
-import resolvers from './app/resolvers'
-import defaults from './app/defaults'
-import introspectionQueryResultData from 'types/fragmentTypes'
+import { ErrorHandler, onError } from '@apollo/client/link/error'
+import cache from 'localState/cache'
 
-type ServerErrorOrUndef = ServerError | undefined
-
-const fragmentMatcher = new IntrospectionFragmentMatcher({
-  introspectionQueryResultData,
+// headers is a function so we can test it...
+export const headers: ContextSetter = () => ({
+  headers: {
+    authorization: localStorage.getItem('elevation-token') || '',
+  },
 })
 
-const cache = new InMemoryCache({ fragmentMatcher })
+const addTokenToHeaders = setContext(headers)
+const showFeedbackHandler: RequestHandler = (operation, forward) => {
+  return forward(operation).map(response => {
+    // uncomment for debugging responses
+    // console.log(response)
 
-export const showFeedback = new ApolloLink((operation, forward): Observable<
-FetchResult
-> | null => {
-  if (!forward) return null
+    // Using operationName isn't reliable in cases where the local mutation name
+    // doesn't match the server's mutation name.
+    // e.g. We use editUserBasicDetails locally but mutation is editUser
+    // Fall back to just seeing if the first value in data has a message.
+    const mutationResponse =
+      response.data &&
+      (response.data[operation.operationName] ||
+        response.data[Object.keys(response.data)[0]])
 
-  return forward(operation).map(
-    (response: FetchResult): FetchResult => {
-      // uncomment for debugging responses
-      // console.log(response)
-
-      // if a successful mutation has a success message, display it
-      if (
-        response.data &&
-        response.data[operation.operationName] &&
-        response.data[operation.operationName].message
-      ) {
-        toast.success(response.data[operation.operationName].message, {
-          autoClose: 3000,
-        })
-      }
-
-      return response
-    }
-  )
-})
-
-const client = new ApolloClient({
-  link: ApolloLink.from([
-    onError(({ graphQLErrors, networkError, response }): void => {
-      const serverError: ServerErrorOrUndef = networkError as ServerErrorOrUndef
-
-      if (graphQLErrors && response) {
-        // graphQLErrors.map(({ message, locations, path }) =>
-        //   console.log(
-        //     `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
-        //   )
-        // );
-
-        const errors = graphQLErrors.map((e): string => e.message)
-        errors.forEach((error): number | string => toast.error(error))
-        response.errors = undefined
-      } else if (
-        serverError &&
-        serverError.statusCode === 401 &&
-        window.location.pathname !== '/login'
-      ) {
-        // This also causes a browser refresh, which clears the cache.
-        window.location.pathname = '/login'
-      }
-    }),
-    withClientState({
-      defaults,
-      resolvers,
-      cache,
-    }),
-    showFeedback.concat(
-      createUploadLink({
-        uri: `${process.env.REACT_APP_API_URI}/v0`,
-        credentials: 'include',
+    // if a successful mutation has a success message, display it
+    if (mutationResponse && mutationResponse.message) {
+      toast.success(mutationResponse.message.message, {
+        autoClose: 3000,
       })
-    ),
-  ]),
-  cache,
-})
+    }
 
-export default client
+    return response
+  })
+}
+const showFeedback = new ApolloLink(showFeedbackHandler)
+
+export const handleErrors: ErrorHandler = ({
+  networkError = {},
+  graphQLErrors,
+}) => {
+  const serverError = networkError as ServerError
+  if (serverError.statusCode === 401) {
+    // for some reason I can't figure out how to push location to history
+    // so it refreshes here
+    window.location.replace('/login')
+  } else if (serverError.statusCode === 500 || serverError.statusCode === 400) {
+    toast.error('Internal server error', {
+      autoClose: 3000,
+    })
+  } else if (graphQLErrors) {
+    graphQLErrors.forEach((error): void => {
+      toast.error(error.message, {
+        autoClose: 3000,
+      })
+    })
+  }
+}
+
+const afterWare = onError(handleErrors)
+
+const createApolloClient = (uri: string): ApolloClient<any> => {
+  const httpLink = createUploadLink({ uri, credentials: 'include' })
+  const link = afterWare.concat(
+    // https://github.com/jaydenseric/apollo-upload-client/issues/213
+    addTokenToHeaders.concat(
+      showFeedback.concat((httpLink as unknown) as ApolloLink)
+    )
+  )
+
+  return new ApolloClient({
+    link,
+    cache,
+  })
+}
+
+export default createApolloClient
